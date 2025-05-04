@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Chat Assistant</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f4f4f4;
+        }
+        h1 {
+            text-align: center;
+        }
+        #model-selection, #file-upload, #comparison {
+            margin-bottom: 20px;
+        }
+        label {
+            margin-right: 10px;
+        }
+        select, input[type="file"] {
+            margin-right: 20px;
+        }
+        #chat-container {
+            border: 1px solid #ccc;
+            padding: 10px;
+            height: 400px;
+            overflow-y: auto;
+            background-color: #fff;
+        }
+        .message {
+            margin: 10px 0;
+        }
+        .user {
+            font-weight: bold;
+            color: #333;
+        }
+        .bot {
+            margin-left: 20px;
+            color: #555;
+        }
+        #user-input {
+            width: 80%;
+            padding: 10px;
+            margin-top: 10px;
+        }
+        #send-btn {
+            padding: 10px 20px;
+            margin-top: 10px;
+        }
+        #response-area {
+            margin-top: 20px;
+        }
+        .comparison {
+            display: flex;
+            justify-content: space-between;
+        }
+        .model-response {
+            width: 48%;
+            border: 1px solid #ccc;
+            padding: 10px;
+            background-color: #fafafa;
+            overflow-y: auto;
+            height: 200px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Web-based Chat Assistant</h1>
+    <div id="model-selection">
+        <label for="model">Select Model:</label>
+        <select id="model">
+            <option value="model-A">Model A</option>
+            <option value="model-B">Model B</option>
+        </select>
+        <button id="switch-model">Switch Model</button>
+    </div>
+    <div id="file-upload">
+        <label for="file">Upload Files for Context:</label>
+        <input type="file" id="file" multiple />
+        <button id="upload-btn">Upload</button>
+    </div>
+    <div id="comparison">
+        <label>
+            <input type="checkbox" id="compare-toggle" />
+            Compare Responses from Two Models
+        </label>
+    </div>
+    <div id="chat-container"></div>
+    <div>
+        <input type="text" id="user-input" placeholder="Type your message..." />
+        <button id="send-btn">Send</button>
+    </div>
+    <div id="response-area"></div>
+
+    <script>
+        const chatContainer = document.getElementById('chat-container');
+        const userInput = document.getElementById('user-input');
+        const sendBtn = document.getElementById('send-btn');
+        const modelSelect = document.getElementById('model');
+        const switchModelBtn = document.getElementById('switch-model');
+        const compareToggle = document.getElementById('compare-toggle');
+        const fileInput = document.getElementById('file');
+        const uploadBtn = document.getElementById('upload-btn');
+        const responseArea = document.getElementById('response-area');
+
+        let uploadedFiles = [];
+        let currentModel = modelSelect.value;
+
+        // Function to append message to chat
+        function appendMessage(sender, message) {
+            const msgDiv = document.createElement('div');
+            msgDiv.className = 'message';
+            if (sender === 'user') {
+                msgDiv.innerHTML = `<div class="user">User:</div><div>${message}</div>`;
+            } else if (sender === 'bot') {
+                msgDiv.innerHTML = `<div class="bot">Bot:</div><div>${message}</div>`;
+            } else if (sender === 'comparison') {
+                msgDiv.innerHTML = `<div class="comparison">
+                    <div class="model-response"><strong>Model 1:</strong><div>${message[0]}</div></div>
+                    <div class="model-response"><strong>Model 2:</strong><div>${message[1]}</div></div>
+                </div>`;
+            }
+            chatContainer.appendChild(msgDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        // Function to handle sending message
+        async function sendMessage() {
+            const message = userInput.value.trim();
+            if (!message) return;
+            appendMessage('user', message);
+            userInput.value = '';
+
+            // Prepare payload
+            const payload = {
+                message: message,
+                model: currentModel,
+                files: uploadedFiles
+            };
+
+            try {
+                if (compareToggle.checked) {
+                    // Send to backend for comparison
+                    const response = await fetch('/api/compare', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(payload)
+                    });
+                    if (!response.ok) throw new Error('Error from server');
+                    const data = await response.json();
+                    appendMessage('comparison', [data.response1, data.response2]);
+                } else {
+                    // Send to backend for single response
+                    const response = await fetch('/api/chat', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(payload)
+                    });
+                    if (!response.ok) throw new Error('Error from server');
+                    const data = await response.json();
+                    appendMessage('bot', data.response);
+                }
+            } catch (error) {
+                appendMessage('bot', 'Error: ' + error.message);
+            }
+        }
+
+        sendBtn.addEventListener('click', sendMessage);
+        userInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+
+        // Handle model switching
+        document.getElementById('switch-model').addEventListener('click', () => {
+            currentModel = modelSelect.value;
+        });
+
+        // Handle file upload
+        uploadBtn.addEventListener('click', () => {
+            const files = Array.from(fileInput.files);
+            uploadedFiles = files.map(file => file.name);
+            alert(`Uploaded files: ${uploadedFiles.join(', ')}`);
+        });
+    </script>
+</body>
+</html>
